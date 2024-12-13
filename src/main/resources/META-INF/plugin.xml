@@ -28,7 +28,7 @@
 
     </extensions>
     <actions>
-        <action id="com.dannypa.demoplugin.TestAction" class="com.dannypa.demoplugin.TestAction" text="Test Action"
+        <action id="com.dannypa.demoplugin.ShowMemeResizePanel" class="com.dannypa.demoplugin.ShowMemeResizePanel" text="Test Action"
                 description="SDK action example">
             <add-to-group group-id="ToolsMenu" anchor="first"/>
         </action>
