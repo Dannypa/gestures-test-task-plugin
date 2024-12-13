@@ -12,7 +12,7 @@ public class MemeResizeFrame extends JFrame {
 
     MemeResizeFrame(BufferedImage meme) {
         MemeResizePanel panel = new MemeResizePanel(meme);
-        this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        this.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
         this.setSize(SCREEN_WIDTH, SCREEN_HEIGHT);
         this.setResizable(false);
         this.setLocationRelativeTo(null);
