@@ -4,7 +4,6 @@ import javax.swing.*;
 import javax.swing.event.MouseInputAdapter;
 import java.awt.*;
 import java.awt.event.MouseEvent;
-import java.awt.image.BufferedImage;
 import java.util.Arrays;
 import java.util.Comparator;
 
@@ -17,11 +16,18 @@ enum Side {
 
 /**
  * The panel that records when mouse enters and the side it enters from.
- * Draws a meme and makes the meme follow the mouse such that mouse is at the center of the meme.
- * Resizes the meme based on the mouse movement: the dimensions are updated by the formula
- * currentD = min(originalD / b + k * distance(mouse, side it entered from), originalD)
+ * Draws the passed component and makes it follow the mouse such that mouse is at the center of the component.
+ * Resizes the component based on the mouse movement: the dimensions are updated by the formula
+ * currentD = min(originalD / b + k * distance(mouse, entranceSide), originalD)
+ * where:
+ * <ul>
+ *     <li>originalD - the original dimension of the component</li>
+ *     <li>b - the initial scaling factor</li>
+ *     <li>k - a scaling factor to adjust sensitivity</li>
+ *     <li>distance(mouse, entranceSide) - the distance from the mouse to the side of the panel it entered from</li>
+ * </ul>
  */
-public class MemeResizePanel extends JPanel {
+public class MouseFollowAndResizePanel extends JPanel {
 
     /**
      * Initial scaling factor b from the formula above.
@@ -39,81 +45,92 @@ public class MemeResizePanel extends JPanel {
     private Side entranceSide;
 
     /**
-     * The meme we are going to draw.
+     * The original size of the component.
      */
-    private final BufferedImage meme;
-    /**
-     * The original size of the meme.
-     */
-    private final Dimension originalMemeSize;
-    /**
-     * The current size of the meme; depends on the mouse position.
-     */
-    private Dimension currentMemeSize;
-    /**
-     * The position the meme should be drawn at. Follows the mouse position.
-     */
-    private Point currentMemePosition;
-    /**
-     * Determines if the meme is visible; basically checks if the mouse is inside the panel.
-     */
-    private boolean isVisible = false;
+    private final Dimension originalSize;
 
-    public MemeResizePanel(BufferedImage meme) {
-        this.setLayout(null);
-
-        this.meme = meme;
-        originalMemeSize = new Dimension(meme.getWidth(), meme.getHeight());
-
-        MouseInputAdapter handler = new MouseInputAdapter() {
+    /**
+     * Generates a mouse input adapter that handles mouse events such as entering, exiting, and movement.
+     * <p>
+     * The adapter:
+     * <ul>
+     *     <li>Tracks the side where the mouse enters.</li>
+     *     <li>Updates the component size and visibility.</li>
+     *     <li>Centers the component on the mouse location.</li>
+     * </ul>
+     *
+     * @param component The component to be resized and moved.
+     * @return A {@link MouseInputAdapter} to handle mouse events.
+     */
+    private MouseInputAdapter getMouseInputAdapter(Component component) {
+        return new MouseInputAdapter() {
             @Override
             public void mouseEntered(MouseEvent e) {
                 super.mouseEntered(e);
 
                 entranceSide = getClosestSide(e.getLocationOnScreen());
-                isVisible = true;
-                currentMemeSize = new Dimension(
-                        originalMemeSize.width / INITIAL_SCALE,
-                        originalMemeSize.height / INITIAL_SCALE
-                );
-                repaint();
+                component.setVisible(true);
+                component.setSize(new Dimension(
+                        originalSize.width / INITIAL_SCALE,
+                        originalSize.height / INITIAL_SCALE
+                ));
             }
 
             @Override
             public void mouseExited(MouseEvent e) {
                 super.mouseExited(e);
 
-                isVisible = false;
-                repaint();
+                component.setVisible(false);
             }
 
             @Override
             public void mouseMoved(MouseEvent e) {
                 super.mouseMoved(e);
-
                 assert entranceSide != null;
 
                 int distanceToSide = getDistanceToSide(e.getLocationOnScreen(), entranceSide);
-                currentMemeSize = getCurrentMemeSize(distanceToSide);
-                currentMemePosition = e.getPoint();
-                currentMemePosition.x -= currentMemeSize.width / 2;
-                currentMemePosition.y -= currentMemeSize.height / 2;
-                repaint();
+                component.setSize(calculateCurrentComponentSize(distanceToSide));
+                centerComponentAtMouse(component, e.getPoint());
+                component.revalidate();
             }
         };
+    }
 
+    /**
+     * Centers the component relative to the mouse location.
+     *
+     * @param component     The component to be centered.
+     * @param mousePosition The current mouse position.
+     */
+    private void centerComponentAtMouse(Component component, Point mousePosition) {
+        mousePosition.x -= component.getSize().width / 2;
+        mousePosition.y -= component.getSize().height / 2;
+        component.setLocation(mousePosition);
+    }
+
+    /**
+     * Constructs a {@link MouseFollowAndResizePanel} that tracks mouse movement, entrance, and resizing.
+     *
+     * @param component     The component to be resized and moved based on mouse interaction.
+     * @param componentSize The original size of the component before any scaling.
+     */
+    public MouseFollowAndResizePanel(Component component, Dimension componentSize) {
+        this.setLayout(null);
+        this.add(component);
+        originalSize = componentSize;
+        MouseInputAdapter handler = getMouseInputAdapter(component);
         this.addMouseListener(handler);
         this.addMouseMotionListener(handler);
     }
 
     /**
-     * Applies the scaling formula to a number (meme dimension).
+     * Applies the scaling formula to a number (component dimension).
      *
      * @param original       Original dimension.
      * @param distanceToSide Current distance from mouse to the side of the panel it entered from.
      * @return The result of the scaling of the original dimension given by the formula in the class description.
      */
-    private int getCurrentMemeDimension(int original, int distanceToSide) {
+    private int calculateCurrentComponentDimension(int original, int distanceToSide) {
         return Math.min(
                 original / INITIAL_SCALE + (int) ((distanceToSide * SCALING_FACTOR) * original),
                 original
@@ -121,44 +138,22 @@ public class MemeResizePanel extends JPanel {
     }
 
     /**
-     * Applies the scaling formula to get the current meme size.
+     * Applies the scaling formula to get the current component size.
      *
      * @param distanceToSide Current distance from mouse to the side of the panel it entered from.
-     * @return The result of scaling of the meme size given by the formula in the class description.
+     * @return The result of scaling of the component size given by the formula in the class description.
      */
-    private Dimension getCurrentMemeSize(int distanceToSide) {
+    private Dimension calculateCurrentComponentSize(int distanceToSide) {
         return new Dimension(
-                getCurrentMemeDimension(originalMemeSize.width, distanceToSide),
-                getCurrentMemeDimension(originalMemeSize.height, distanceToSide)
+                calculateCurrentComponentDimension(originalSize.width, distanceToSide),
+                calculateCurrentComponentDimension(originalSize.height, distanceToSide)
         );
     }
 
     /**
-     * Paints this component; specifically, paints the meme.
+     * Retrieves the coordinate of the specified side of the panel.
      *
-     * @param g Graphics parameter.
-     */
-    @Override
-    public void paintComponent(Graphics g) {
-        super.paintComponent(g);
-        if (currentMemePosition == null || currentMemeSize == null) {
-            System.out.println("nulls!");
-            return;
-        }
-        if (isVisible) {
-            g.drawImage(
-                    meme,
-                    currentMemePosition.x,
-                    currentMemePosition.y,
-                    currentMemeSize.width,
-                    currentMemeSize.height,
-                    this
-            );
-        }
-    }
-
-    /**
-     * @param side Determines which side is considered.
+     * @param side The {@link Side} for which the coordinate is required.
      * @return The relevant coordinate of the panel's side.
      * If the side is TOP or BOTTOM, returns its y; otherwise returns its x.
      */
@@ -189,7 +184,7 @@ public class MemeResizePanel extends JPanel {
 
     /**
      * @param p The point which we compute the distance from.
-     * @return The side that is closest to the point.
+     * @return The {@link Side} closest to the specified point.
      */
     private Side getClosestSide(Point p) {
         // not always clear: what if it is diagonal?
@@ -208,7 +203,7 @@ public class MemeResizePanel extends JPanel {
 
     /**
      * @param p    The point which we compute the distance from.
-     * @param side Determines the side we compute the distance to.
+     * @param side The {@link Side} to calculate the distance to.
      * @return The distance from the point to the panel's side.
      */
     private int getDistanceToSide(Point p, Side side) {
